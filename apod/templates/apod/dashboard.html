@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APOD Cache Lab</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66;
+    --line: #e4e4df; --accent: #2a5bd7;
+    --hit: #1f8f4e; --miss: #d9822b; --bypass: #8a8a85;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --card: #1e1e1c; --text: #ecece8; --muted: #9a9a94;
+      --line: #2e2e2b; --accent: #7fa2ff;
+      --hit: #46c07a; --miss: #f0a050; --bypass: #8f8f8a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px;
+           border: 1px solid var(--line); color: var(--muted); margin-left: 6px; }
+  .badge.warn { color: var(--miss); border-color: var(--miss); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+       color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  label { color: var(--muted); font-size: 13px; }
+  input[type=date], input[type=text] {
+    padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); font: inherit; }
+  input[type=text] { flex: 1; min-width: 160px; }
+  button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger:hover { border-color: var(--miss); color: var(--miss); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .stat .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat .k { color: var(--muted); font-size: 12px; }
+  .chart { display: flex; align-items: flex-end; gap: 3px; height: 150px;
+           border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+  .bar { flex: 1; min-width: 4px; border-radius: 3px 3px 0 0; position: relative; }
+  .bar.HIT { background: var(--hit); } .bar.MISS { background: var(--miss); }
+  .bar.BYPASS { background: var(--bypass); }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  .tag { font-weight: 600; font-size: 12px; }
+  .tag.HIT { color: var(--hit); } .tag.MISS { color: var(--miss); }
+  .tag.BYPASS { color: var(--bypass); } .tag.ERR { color: #d23b3b; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 8px; min-height: 1.4em; }
+  .result { font-weight: 600; margin-top: 10px; }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>APOD Cache Lab
+    {% if mock %}<span class="badge warn">mock NASA mode</span>{% else %}<span class="badge">live NASA API</span>{% endif %}
+  </h1>
+  <p class="sub">Same data, three endpoints. Watch the response time change when Redis answers instead of NASA.</p>
+
+  <div class="card">
+    <h2>Request</h2>
+    <div class="row">
+      <label for="date">APOD date</label>
+      <input type="date" id="date" value="{{ default_date }}">
+      <button class="primary" data-kind="low-level">Low-level cache</button>
+      <button data-kind="page-cached">Per-view cache</button>
+      <button data-kind="uncached">Uncached (calls NASA)</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="bench" class="primary">Run mini benchmark</button>
+      <button id="inv-date" class="danger">Invalidate this date</button>
+      <button id="inv-all" class="danger">Clear all cache</button>
+      <button id="reset">Reset counters</button>
+    </div>
+    <div class="note" id="msg"></div>
+    <div class="result" id="benchresult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Redis cache (live)</h2>
+    <div class="stats">
+      <div class="stat"><div class="v" id="s-hits">0</div><div class="k">hits</div></div>
+      <div class="stat"><div class="v" id="s-misses">0</div><div class="k">misses</div></div>
+      <div class="stat"><div class="v" id="s-ratio">-</div><div class="k">hit ratio</div></div>
+      <div class="stat"><div class="v" id="s-ttl">-</div><div class="k">TTL left for this date (of {{ ttl }}s)</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Response time per request (newest on the right)</h2>
+    <div class="chart" id="chart"><div class="empty" style="width:100%">Make a request to start.</div></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--hit)"></span>HIT</span>
+      <span><span class="dot" style="background:var(--miss)"></span>MISS</span>
+      <span><span class="dot" style="background:var(--bypass)"></span>uncached</span>
+      <span id="chartmax" style="margin-left:auto"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Change the source, then watch invalidation</h2>
+    <div class="row">
+      <input type="text" id="ov-title" placeholder="New title for this date">
+      <input type="text" id="ov-note" placeholder="Note (optional)">
+      <button id="ov-save">Save override</button>
+    </div>
+    <div class="note">Saving fires a Django signal that deletes the cached entry. The next low-level request is sent automatically and should show a MISS with your new title.</div>
+  </div>
+
+  <div class="card">
+    <h2>Request log</h2>
+    <table>
+      <thead><tr><th>Time</th><th>Endpoint</th><th>Cache</th><th class="num">ms</th><th>Title</th></tr></thead>
+      <tbody id="log"><tr><td colspan="5" class="empty">Nothing yet.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const MAX_POINTS = 30;
+const entries = [];
+
+const dateVal = () => $('#date').value;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const say = (t) => { $('#msg').textContent = t || ''; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function call(kind) {
+  const url = '/api/apod/' + kind + '/?date=' + encodeURIComponent(dateVal());
+  const t0 = performance.now();
+  let tag = 'ERR', title = '', ok = false;
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    const ms = performance.now() - t0;
+    const body = await r.json();
+    if (r.ok) {
+      tag = r.headers.get('X-Cache') || '?';
+      title = body.title + (body.overridden ? '  (overridden)' : '');
+      ok = true;
+    } else {
+      title = body.error || ('HTTP ' + r.status);
+    }
+    add({ kind, tag, ms, title });
+    return { ok, tag, ms, title };
+  } catch (e) {
+    const ms = performance.now() - t0;
+    add({ kind, tag: 'ERR', ms, title: String(e) });
+    return { ok: false, tag: 'ERR', ms, title: String(e) };
+  }
+}
+
+function add(e) {
+  e.time = new Date().toLocaleTimeString();
+  entries.push(e);
+  render();
+}
+
+function render() {
+  const recent = entries.slice(-MAX_POINTS);
+  const max = Math.max(...recent.map((e) => e.ms), 1);
+  $('#chart').innerHTML = recent.map((e) => {
+    const h = Math.max(3, (e.ms / max) * 100);
+    const cls = e.tag === 'ERR' ? 'BYPASS' : e.tag;
+    return '<div class="bar ' + cls + '" style="height:' + h + '%" title="' +
+      esc(e.kind + ' ' + e.tag + ' ' + e.ms.toFixed(0) + ' ms') + '"></div>';
+  }).join('');
+  $('#chartmax').textContent = 'tallest bar: ' + max.toFixed(0) + ' ms';
+  $('#log').innerHTML = entries.slice(-15).reverse().map((e) =>
+    '<tr><td>' + esc(e.time) + '</td><td>' + esc(e.kind) + '</td><td><span class="tag ' +
+    esc(e.tag) + '">' + esc(e.tag) + '</span></td><td class="num">' + e.ms.toFixed(0) +
+    '</td><td>' + esc(e.title) + '</td></tr>').join('');
+}
+
+async function refreshStats() {
+  try {
+    const r = await fetch('/api/cache/stats/?date=' + encodeURIComponent(dateVal()), { cache: 'no-store' });
+    const s = await r.json();
+    $('#s-hits').textContent = s.hits;
+    $('#s-misses').textContent = s.misses;
+    $('#s-ratio').textContent = s.hit_ratio === null ? '-' : Math.round(s.hit_ratio * 100) + '%';
+    $('#s-ttl').textContent = s.ttl_seconds_left ? s.ttl_seconds_left + 's' : 'not cached';
+  } catch (e) { /* server restarting, ignore */ }
+}
+
+function busy(on) {
+  document.querySelectorAll('button').forEach((b) => { b.disabled = on; });
+}
+
+document.querySelectorAll('button[data-kind]').forEach((b) => {
+  b.addEventListener('click', async () => {
+    busy(true); say('');
+    await call(b.dataset.kind);
+    await refreshStats();
+    busy(false);
+  });
+});
+
+async function post(path, body) {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return r;
+}
+
+$('#inv-date').addEventListener('click', async () => {
+  busy(true);
+  await post('/api/cache/invalidate/?date=' + encodeURIComponent(dateVal()));
+  say('Cleared cache for ' + dateVal() + '. Next request will be a MISS.');
+  await refreshStats(); busy(false);
+});
+$('#inv-all').addEventListener('click', async () => {
+  busy(true);
+  await post('/api/cache/invalidate/');
+  say('Cleared every APOD entry (low-level and per-view).');
+  await refreshStats(); busy(false);
+});
+$('#reset').addEventListener('click', async () => {
+  busy(true);
+  await post('/api/cache/stats/reset/');
+  say('Counters reset.');
+  await refreshStats(); busy(false);
+});
+
+$('#ov-save').addEventListener('click', async () => {
+  const title = $('#ov-title').value.trim();
+  if (!title) { say('Type a title first.'); return; }
+  busy(true);
+  const r = await post('/api/override/', { date: dateVal(), title, note: $('#ov-note').value });
+  if (!r.ok) { say('Could not save override.'); busy(false); return; }
+  say('Saved. Signal fired, cache for this date cleared. Fetching again...');
+  await call('low-level');
+  await refreshStats(); busy(false);
+});
+
+$('#bench').addEventListener('click', async () => {
+  const HITS = 10;
+  busy(true); $('#benchresult').textContent = '';
+  say('Running: 1 uncached call, 1 low-level miss, ' + HITS + ' low-level hits (2 calls to NASA in total).');
+  await post('/api/cache/invalidate/?date=' + encodeURIComponent(dateVal()));
+  const unc = await call('uncached');
+  const miss = await call('low-level');
+  const hits = [];
+  for (let i = 0; i < HITS; i++) { hits.push((await call('low-level')).ms); await sleep(40); }
+  const avg = hits.reduce((a, b) => a + b, 0) / hits.length;
+  if (unc.ok && miss.ok) {
+    $('#benchresult').textContent = 'Uncached ' + unc.ms.toFixed(0) + ' ms, miss ' + miss.ms.toFixed(0) +
+      ' ms, hit avg ' + avg.toFixed(1) + ' ms. About ' + (unc.ms / avg).toFixed(0) + 'x faster from the cache.';
+    say('');
+  } else {
+    say('Benchmark hit an error (check your API key or rate limit). See the log below.');
+  }
+  await refreshStats(); busy(false);
+});
+
+$('#date').addEventListener('change', refreshStats);
+refreshStats();
+setInterval(refreshStats, 1500);
+</script>
+</body>
+</html>
