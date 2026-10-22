@@ -4,14 +4,14 @@
 
 ## Members and roles
 
-| Member | Role | Owns |
-|---|---|---|
-| _Name 1_ | Backend / caching | `apod/views.py`, `apod/cache_utils.py` |
-| _Name 2_ | Invalidation and data model | `apod/models.py`, `apod/signals.py` |
-| _Name 3_ | Benchmarking and docs | `scripts/benchmark.py`, README |
-| _Name 4_ | Testing and setup | `apod/tests.py`, docker-compose, env setup |
+| Member | Roll no. | Role | Owns |
+|---|---|---|---|
+| Vihaan Gandhi | E002 | Backend and caching | `apod/views.py`, `apod/cache_utils.py`, `apod/services.py` |
+| Jash Visaria | E003 | Invalidation and data model | `apod/models.py`, `apod/signals.py` |
+| Calvin D'souza | E013 | Benchmarking and documentation | `scripts/benchmark.py`, README, research answers |
+| Arnav Jha | E009 | Testing, dashboard and deployment | `apod/tests.py`, dashboard template, Docker and Vercel setup |
 
-_Replace the names and adjust roles to match who actually did what. Everyone needs real commits._
+_Roles are the planned split. Each member should commit their own area from their own GitHub account and confirm this table matches what they did._
 
 ## What it does
 
@@ -89,6 +89,22 @@ python scripts/benchmark.py --date 2024-01-15
 
 The benchmark makes only about 6 calls to NASA in total. The rest of its requests are served from our own Redis cache. We never load test the public API.
 
+## Deploying to Vercel
+
+The repo includes `vercel.json` and `api/index.py` (the WSGI entry point), so Vercel can build it directly from GitHub.
+
+Set these in the Vercel project settings (Settings, Environment Variables). Never commit them:
+
+| Variable | Value |
+|---|---|
+| `NASA_API_KEY` | your key from https://api.nasa.gov/ |
+| `REDIS_URL` | hosted Redis URL, e.g. Upstash (`rediss://default:<password>@<host>:6379`) |
+| `DJANGO_SECRET_KEY` | any long random string |
+| `DJANGO_DEBUG` | `0` |
+| `DATABASE_URL` | optional, a Postgres URL (e.g. Neon) |
+
+Without `REDIS_URL`, the site still loads but falls back to a per-instance in-memory cache, and the dashboard badge says so. Serverless functions can run on several instances, so hits are only shared properly with a hosted Redis. Without `DATABASE_URL`, overrides are stored in a temporary SQLite file that is lost on cold starts, so the invalidation demo is only reliable with Redis plus Postgres, or locally. For the live demo we run it locally.
+
 ## Benchmark results
 
 _Fill this in from your own run, and add a screenshot of the terminal output._
@@ -126,6 +142,8 @@ Per-view caching (`@cache_page`) stores the entire HTTP response for a URL. It i
 
 ```
 config/        Django settings and urls (test_settings.py uses locmem cache)
+api/           Vercel entry point (index.py)
+vercel.json    Vercel routing
 apod/          app: models, services (NASA call), views, cache_utils, signals, tests
 apod/templates/apod/dashboard.html   the demo dashboard
 scripts/       benchmark.py
