@@ -71,7 +71,12 @@ else:
 # REDIS_URL to a hosted Redis (e.g. Upstash, rediss://...). If it is missing on
 # Vercel we fall back to a per-instance in-memory cache so the site still loads,
 # but hits are then not shared between serverless instances.
-REDIS_URL = os.getenv("REDIS_URL") or (None if ON_VERCEL else "redis://127.0.0.1:6379/1")
+# Vercel's Redis integration injects REDIS_URL (and KV_URL); accept either.
+REDIS_URL = (
+    os.getenv("REDIS_URL")
+    or os.getenv("KV_URL")
+    or (None if ON_VERCEL else "redis://127.0.0.1:6379/1")
+)
 if REDIS_URL:
     CACHES = {
         "default": {
