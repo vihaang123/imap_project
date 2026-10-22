@@ -81,7 +81,7 @@ class CacheTests(TestCase):
     def test_dashboard_loads(self):
         r = self.client.get("/")
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "APOD Cache Lab")
+        self.assertContains(r, "APOD cache lab")
 
     @override_settings(USE_MOCK_NASA=True, MOCK_NASA_LATENCY=0)
     def test_mock_mode_never_calls_requests(self):

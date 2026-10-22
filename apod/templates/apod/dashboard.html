@@ -3,188 +3,339 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>APOD Cache Lab</title>
+<title>APOD cache lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66;
-    --line: #e4e4df; --accent: #2a5bd7;
-    --hit: #1f8f4e; --miss: #d9822b; --bypass: #8a8a85;
+    --paper: #f1f3f8; --surface: #ffffff; --ink: #131c36; --muted: #566083;
+    --line: #d9deea; --brand: #2b3a8f; --brand-ink: #ffffff;
+    --hit: #0b7f7a; --miss: #b45f06; --bypass: #566083; --err: #b3261e;
+    --track: #e7eaf3;
+    --radius: 10px;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #151514; --card: #1e1e1c; --text: #ecece8; --muted: #9a9a94;
-      --line: #2e2e2b; --accent: #7fa2ff;
-      --hit: #46c07a; --miss: #f0a050; --bypass: #8f8f8a;
+    :root:not([data-theme="light"]) {
+      --paper: #0e1426; --surface: #161e36; --ink: #e8ecf8; --muted: #9aa5c6;
+      --line: #263052; --brand: #8fa0ff; --brand-ink: #0e1426;
+      --hit: #3fc9c0; --miss: #f0a644; --bypass: #8c97b8; --err: #ff8a80;
+      --track: #1d2744;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 20px; }
-  .badge { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px;
-           border: 1px solid var(--line); color: var(--muted); margin-left: 6px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px; line-height: 1.5;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 56px; }
+
+  /* header */
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 20px; }
+  .top h1 { margin: 0; font-size: 28px; font-weight: 750; font-stretch: 112%; letter-spacing: -0.01em; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  .badge { font-size: 13px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 99px;
+           color: var(--muted); background: var(--surface); }
   .badge.warn { color: var(--miss); border-color: var(--miss); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-          padding: 16px; margin-bottom: 16px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
-       color: var(--muted); margin: 0 0 12px; font-weight: 600; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  label { color: var(--muted); font-size: 13px; }
+
+  /* layout */
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+  .stage { display: grid; gap: 16px; min-width: 0; }
+  .side { display: grid; gap: 16px; position: sticky; top: 16px; }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .side { position: static; }
+  }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .panel h2 { margin: 0 0 4px; font-size: 18px; font-weight: 650; font-stretch: 105%; }
+  .panel .hint { margin: 0 0 14px; color: var(--muted); font-size: 14px; max-width: 62ch; }
+
+  /* hero readout */
+  .readout { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .readout-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+  .big { font-size: clamp(56px, 11vw, 96px); line-height: 1; font-weight: 800; font-stretch: 125%;
+         letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .big small { font-size: 0.3em; font-weight: 600; letter-spacing: 0; margin-left: 6px; color: var(--muted); }
+  .chip { font-size: 15px; font-weight: 700; padding: 2px 12px; border-radius: 6px;
+          background: var(--track); color: var(--muted); }
+  .chip.HIT { background: var(--hit); color: #fff; }
+  .chip.MISS { background: var(--miss); color: #fff; }
+  .chip.BYPASS { background: var(--bypass); color: #fff; }
+  .chip.ERR { background: var(--err); color: #fff; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .chip.HIT, :root:not([data-theme="light"]) .chip.MISS,
+    :root:not([data-theme="light"]) .chip.BYPASS, :root:not([data-theme="light"]) .chip.ERR { color: #0e1426; }
+  }
+  .note { margin: 10px 0 0; color: var(--muted); max-width: 64ch; min-height: 3em; }
+  .big.HIT { color: var(--hit); } .big.MISS { color: var(--miss); }
+
+  /* controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { padding: 8px 14px; cursor: pointer; font-size: 15px; color: var(--muted); border-right: 1px solid var(--line); }
+  .seg label:last-of-type { border-right: 0; }
+  .seg input:checked + label { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+  .seg input:focus-visible + label { outline: 3px solid var(--brand); outline-offset: -3px; }
   input[type=date], input[type=text] {
-    padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
-    background: var(--bg); color: var(--text); font: inherit; }
-  input[type=text] { flex: 1; min-width: 160px; }
-  button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
-           background: var(--card); color: var(--text); font: inherit; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.danger:hover { border-color: var(--miss); color: var(--miss); }
-  button:disabled { opacity: .5; cursor: wait; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
-  .stat .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .stat .k { color: var(--muted); font-size: 12px; }
-  .chart { display: flex; align-items: flex-end; gap: 3px; height: 150px;
-           border-bottom: 1px solid var(--line); padding-bottom: 2px; }
-  .bar { flex: 1; min-width: 4px; border-radius: 3px 3px 0 0; position: relative; }
-  .bar.HIT { background: var(--hit); } .bar.MISS { background: var(--miss); }
-  .bar.BYPASS { background: var(--bypass); }
-  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
-  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  th { color: var(--muted); font-weight: 500; }
-  td.num { font-variant-numeric: tabular-nums; text-align: right; }
-  .tag { font-weight: 600; font-size: 12px; }
-  .tag.HIT { color: var(--hit); } .tag.MISS { color: var(--miss); }
-  .tag.BYPASS { color: var(--bypass); } .tag.ERR { color: #d23b3b; }
-  .note { color: var(--muted); font-size: 13px; margin-top: 8px; min-height: 1.4em; }
-  .result { font-weight: 600; margin-top: 10px; }
-  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+    font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--paper); color: var(--ink); min-height: 40px; }
+  input[type=text] { flex: 1; min-width: 150px; }
+  button { font: inherit; padding: 8px 16px; min-height: 40px; border-radius: 8px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  button:hover:not(:disabled) { border-color: var(--brand); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 650; }
+  button.quiet { color: var(--muted); }
+  button:disabled { opacity: .55; cursor: progress; }
+  :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .msg { margin: 12px 0 0; min-height: 0; color: var(--muted); font-size: 14px; }
+  .bench { margin: 8px 0 0; font-weight: 650; }
+  .msg:empty, .bench:empty { display: none; }
+
+  /* request list with log-scale bars */
+  .reqs { list-style: none; margin: 0; padding: 0; }
+  .req { display: grid; grid-template-columns: 70px 120px 56px minmax(60px, 1fr) 64px; gap: 10px;
+         align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .req:first-child { border-top: 0; }
+  .req .when { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .req .tag { font-weight: 700; }
+  .req .tag.HIT { color: var(--hit); } .req .tag.MISS { color: var(--miss); }
+  .req .tag.BYPASS { color: var(--bypass); } .req .tag.ERR { color: var(--err); }
+  .req .ms { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .track { height: 12px; background: var(--track); border-radius: 6px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 6px; background: var(--bypass); transform-origin: left; animation: grow .45s ease-out; }
+  .fill.HIT { background: var(--hit); } .fill.MISS { background: var(--miss); } .fill.ERR { background: var(--err); }
+  .req .title { grid-column: 2 / -1; color: var(--muted); font-size: 13px; margin-top: -4px;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--muted); padding: 8px 0 2px; }
+  @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @media (max-width: 520px) {
+    .req { grid-template-columns: 56px 1fr 56px; }
+    .req .when, .req .endpoint { display: none; }
+    .req .title { grid-column: 1 / -1; margin-top: 0; }
+  }
+
+  /* source editor */
+  .edit { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* side: picture */
+  .frame { margin: 0; }
+  .frame .pic { aspect-ratio: 4 / 3; background: var(--track); border-radius: 8px; overflow: hidden;
+                display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 14px; padding: 12px; }
+  .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .frame figcaption { margin-top: 10px; }
+  .frame .ttl { font-weight: 650; font-stretch: 105%; }
+  .frame .meta { color: var(--muted); font-size: 13px; }
+  .frame .exp { color: var(--muted); font-size: 14px; margin: 6px 0 0; display: -webkit-box;
+                -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* side: cache state */
+  .stat-row { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 6px; }
+  .stat-row b { font-size: 22px; font-weight: 750; font-stretch: 112%; font-variant-numeric: tabular-nums; }
+  .stat-row span { color: var(--muted); font-size: 14px; }
+  .split { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--track); margin-bottom: 8px; }
+  .split i { display: block; height: 100%; transition: width .4s ease; }
+  .split .h { background: var(--hit); } .split .m { background: var(--miss); }
+  .counts { display: flex; gap: 16px; font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+  .counts b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .ttl-bar { height: 12px; border-radius: 6px; background: var(--track); overflow: hidden; }
+  .ttl-bar i { display: block; height: 100%; background: var(--brand); width: 0; transition: width .25s linear; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fill { animation: none; } .split i, .ttl-bar i { transition: none; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>APOD Cache Lab
-    {% if mock %}<span class="badge warn">mock NASA mode</span>{% else %}<span class="badge">live NASA API</span>{% endif %}
-    <span class="badge {% if cache_label != "Redis" %}warn{% endif %}">cache: {{ cache_label }}</span>
-  </h1>
-  <p class="sub">Same data, three endpoints. Watch the response time change when Redis answers instead of NASA.</p>
-
-  <div class="card">
-    <h2>Request</h2>
-    <div class="row">
-      <label for="date">APOD date</label>
-      <input type="date" id="date" value="{{ default_date }}">
-      <button class="primary" data-kind="low-level">Low-level cache</button>
-      <button data-kind="page-cached">Per-view cache</button>
-      <button data-kind="uncached">Uncached (calls NASA)</button>
+  <header class="top">
+    <h1>APOD cache lab</h1>
+    <div class="badges">
+      {% if mock %}<span class="badge warn">Mock NASA data</span>{% else %}<span class="badge">Live NASA API</span>{% endif %}
+      <span class="badge {% if cache_label != "Redis" %}warn{% endif %}">Cache: {{ cache_label }}</span>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button id="bench" class="primary">Run mini benchmark</button>
-      <button id="inv-date" class="danger">Invalidate this date</button>
-      <button id="inv-all" class="danger">Clear all cache</button>
-      <button id="reset">Reset counters</button>
-    </div>
-    <div class="note" id="msg"></div>
-    <div class="result" id="benchresult"></div>
-  </div>
+  </header>
 
-  <div class="card">
-    <h2>Redis cache (live)</h2>
-    <div class="stats">
-      <div class="stat"><div class="v" id="s-hits">0</div><div class="k">hits</div></div>
-      <div class="stat"><div class="v" id="s-misses">0</div><div class="k">misses</div></div>
-      <div class="stat"><div class="v" id="s-ratio">-</div><div class="k">hit ratio</div></div>
-      <div class="stat"><div class="v" id="s-ttl">-</div><div class="k">TTL left for this date (of {{ ttl }}s)</div></div>
-    </div>
-  </div>
+  <div class="grid">
+    <div class="stage">
 
-  <div class="card">
-    <h2>Response time per request (newest on the right)</h2>
-    <div class="chart" id="chart"><div class="empty" style="width:100%">Make a request to start.</div></div>
-    <div class="legend">
-      <span><span class="dot" style="background:var(--hit)"></span>HIT</span>
-      <span><span class="dot" style="background:var(--miss)"></span>MISS</span>
-      <span><span class="dot" style="background:var(--bypass)"></span>uncached</span>
-      <span id="chartmax" style="margin-left:auto"></span>
-    </div>
-  </div>
+      <section class="panel" aria-labelledby="t-req">
+        <div class="readout">
+          <h2 id="t-req" class="sr" style="position:absolute;left:-9999px">Response time</h2>
+          <div class="readout-row" aria-live="polite">
+            <div class="big" id="r-big"><span id="r-ms">&ndash;</span><small>ms</small></div>
+            <span class="chip" id="r-tag">Ready</span>
+          </div>
+          <p class="note" id="r-note">Send a request. The first one is slow because Django has to call NASA. Send it again and the answer comes from the cache.</p>
+        </div>
 
-  <div class="card">
-    <h2>Change the source, then watch invalidation</h2>
-    <div class="row">
-      <input type="text" id="ov-title" placeholder="New title for this date">
-      <input type="text" id="ov-note" placeholder="Note (optional)">
-      <button id="ov-save">Save override</button>
-    </div>
-    <div class="note">Saving fires a Django signal that deletes the cached entry. The next low-level request is sent automatically and should show a MISS with your new title.</div>
-  </div>
+        <div class="controls">
+          <div class="seg" role="radiogroup" aria-label="Endpoint">
+            <input type="radio" name="kind" id="k-low" value="low-level" checked><label for="k-low">Low-level cache</label>
+            <input type="radio" name="kind" id="k-page" value="page-cached"><label for="k-page">Per-view cache</label>
+            <input type="radio" name="kind" id="k-none" value="uncached"><label for="k-none">No cache</label>
+          </div>
+          <input type="date" id="date" value="{{ default_date }}" aria-label="APOD date">
+          <button class="primary" id="send">Send request</button>
+        </div>
 
-  <div class="card">
-    <h2>Request log</h2>
-    <table>
-      <thead><tr><th>Time</th><th>Endpoint</th><th>Cache</th><th class="num">ms</th><th>Title</th></tr></thead>
-      <tbody id="log"><tr><td colspan="5" class="empty">Nothing yet.</td></tr></tbody>
-    </table>
+        <div class="actions">
+          <button id="bench">Run mini benchmark</button>
+          <button id="inv-date" class="quiet">Invalidate this date</button>
+          <button id="inv-all" class="quiet">Clear all cache</button>
+          <button id="reset" class="quiet">Reset counters</button>
+        </div>
+        <p class="msg" id="msg"></p>
+        <p class="bench" id="benchresult"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="t-log">
+        <h2 id="t-log">Requests</h2>
+        <p class="hint">Bar length uses a log scale, so a 2 ms hit stays visible next to an 800 ms call to NASA.</p>
+        <ul class="reqs" id="log"><li class="empty">No requests yet.</li></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="t-src">
+        <h2 id="t-src">Edit the source</h2>
+        <p class="hint">Change the title for the chosen date. Saving fires a Django signal that deletes the cached copy, then the page asks again: you should see a MISS with your new title.</p>
+        <div class="edit">
+          <input type="text" id="ov-title" placeholder="New title" aria-label="New title">
+          <input type="text" id="ov-note" placeholder="Note (optional)" aria-label="Note">
+          <button id="ov-save">Save and request again</button>
+        </div>
+      </section>
+    </div>
+
+    <aside class="side">
+      <section class="panel" aria-label="Picture for the chosen date">
+        <figure class="frame">
+          <div class="pic" id="pic">The NASA picture for the chosen date appears here after the first request.</div>
+          <figcaption>
+            <div class="ttl" id="f-title"></div>
+            <div class="meta" id="f-meta"></div>
+            <p class="exp" id="f-exp"></p>
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="panel" aria-labelledby="t-cache">
+        <h2 id="t-cache">Cache state</h2>
+        <div class="stat-row" style="margin-top:12px"><span>Hit ratio</span><b id="s-ratio">&ndash;</b></div>
+        <div class="split" aria-hidden="true"><i class="h" id="b-h" style="width:0"></i><i class="m" id="b-m" style="width:0"></i></div>
+        <div class="counts"><span><b id="s-hits">0</b> hits</span><span><b id="s-misses">0</b> misses</span></div>
+        <div class="stat-row"><span>Time left for this date</span><b id="s-ttl">&ndash;</b></div>
+        <div class="ttl-bar" aria-hidden="true"><i id="b-ttl"></i></div>
+      </section>
+    </aside>
   </div>
 </div>
 
 <script>
 const $ = (s) => document.querySelector(s);
-const MAX_POINTS = 30;
+const TTL_TOTAL = {{ ttl }};
+const NAMES = { 'low-level': 'Low-level cache', 'page-cached': 'Per-view cache', 'uncached': 'No cache' };
 const entries = [];
+let lastNasaMs = null;
+let ttlExpires = null;   // timestamp (ms) when the key expires, null = unknown
 
+const kind = () => document.querySelector('input[name=kind]:checked').value;
 const dateVal = () => $('#date').value;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const say = (t) => { $('#msg').textContent = t || ''; };
+const fmt = (ms) => (ms >= 100 ? Math.round(ms) : ms.toFixed(1)).toString();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-async function call(kind) {
-  const url = '/api/apod/' + kind + '/?date=' + encodeURIComponent(dateVal());
+$('#date').max = new Date().toISOString().slice(0, 10);
+
+async function call(which) {
+  const url = '/api/apod/' + which + '/?date=' + encodeURIComponent(dateVal());
   const t0 = performance.now();
-  let tag = 'ERR', title = '', ok = false;
   try {
     const r = await fetch(url, { cache: 'no-store' });
     const ms = performance.now() - t0;
     const body = await r.json();
     if (r.ok) {
-      tag = r.headers.get('X-Cache') || '?';
-      title = body.title + (body.overridden ? '  (overridden)' : '');
-      ok = true;
-    } else {
-      title = body.error || ('HTTP ' + r.status);
+      const tag = r.headers.get('X-Cache') || '?';
+      const title = body.title + (body.overridden ? ' (edited)' : '');
+      const res = { ok: true, which, tag, ms, title, body };
+      record(res); return res;
     }
-    add({ kind, tag, ms, title });
-    return { ok, tag, ms, title };
+    const res = { ok: false, which, tag: 'ERR', ms, title: body.error || ('HTTP ' + r.status) };
+    record(res); return res;
   } catch (e) {
-    const ms = performance.now() - t0;
-    add({ kind, tag: 'ERR', ms, title: String(e) });
-    return { ok: false, tag: 'ERR', ms, title: String(e) };
+    const res = { ok: false, which, tag: 'ERR', ms: performance.now() - t0, title: 'Could not reach the server' };
+    record(res); return res;
   }
 }
 
-function add(e) {
-  e.time = new Date().toLocaleTimeString();
+function record(e) {
+  e.time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   entries.push(e);
-  render();
+  if (e.ok && (e.tag === 'MISS' || e.tag === 'BYPASS')) lastNasaMs = e.ms;
+  showReadout(e);
+  renderLog();
+  if (e.ok) showPicture(e.body);
 }
 
-function render() {
-  const recent = entries.slice(-MAX_POINTS);
-  const max = Math.max(...recent.map((e) => e.ms), 1);
-  $('#chart').innerHTML = recent.map((e) => {
-    const h = Math.max(3, (e.ms / max) * 100);
-    const cls = e.tag === 'ERR' ? 'BYPASS' : e.tag;
-    return '<div class="bar ' + cls + '" style="height:' + h + '%" title="' +
-      esc(e.kind + ' ' + e.tag + ' ' + e.ms.toFixed(0) + ' ms') + '"></div>';
-  }).join('');
-  $('#chartmax').textContent = 'tallest bar: ' + max.toFixed(0) + ' ms';
-  $('#log').innerHTML = entries.slice(-15).reverse().map((e) =>
-    '<tr><td>' + esc(e.time) + '</td><td>' + esc(e.kind) + '</td><td><span class="tag ' +
-    esc(e.tag) + '">' + esc(e.tag) + '</span></td><td class="num">' + e.ms.toFixed(0) +
-    '</td><td>' + esc(e.title) + '</td></tr>').join('');
+function showReadout(e) {
+  $('#r-ms').textContent = fmt(e.ms);
+  $('#r-big').className = 'big ' + e.tag;
+  const chip = $('#r-tag');
+  chip.textContent = e.tag === 'ERR' ? 'Error' : e.tag;
+  chip.className = 'chip ' + e.tag;
+  let note;
+  if (e.tag === 'HIT') {
+    note = lastNasaMs
+      ? 'Served from the cache without calling NASA, about ' + Math.max(1, Math.round(lastNasaMs / e.ms)) + 'x faster than the last NASA call (' + fmt(lastNasaMs) + ' ms).'
+      : 'Served from the cache without calling NASA.';
+  } else if (e.tag === 'MISS') {
+    note = 'Not in the cache yet, so Django called NASA, stored the result for ' + TTL_TOTAL + ' seconds and returned it.';
+  } else if (e.tag === 'BYPASS') {
+    note = 'No cache on this endpoint. Every request calls NASA.';
+  } else {
+    note = e.title + '. Check the API key and rate limit, then try again.';
+  }
+  $('#r-note').textContent = note;
+}
+
+function logBar(ms) {
+  const pct = Math.log10(Math.max(ms, 1)) / Math.log10(5000) * 100;
+  return Math.min(100, Math.max(3, pct));
+}
+
+function renderLog() {
+  $('#log').innerHTML = entries.slice(-12).reverse().map((e) =>
+    '<li class="req">' +
+      '<span class="when">' + esc(e.time) + '</span>' +
+      '<span class="endpoint">' + esc(NAMES[e.which]) + '</span>' +
+      '<span class="tag ' + e.tag + '">' + (e.tag === 'ERR' ? 'Error' : e.tag) + '</span>' +
+      '<span class="track"><span class="fill ' + e.tag + '" style="display:block;width:' + logBar(e.ms).toFixed(1) + '%"></span></span>' +
+      '<span class="ms">' + fmt(e.ms) + ' ms</span>' +
+      '<span class="title">' + esc(e.title) + '</span>' +
+    '</li>').join('');
+}
+
+function showPicture(b) {
+  const pic = $('#pic');
+  if (b.media_type === 'image' && b.url) {
+    const img = new Image();
+    img.alt = b.title || 'NASA picture of the day';
+    img.onerror = () => { pic.textContent = 'The image could not be loaded' + (b.url.includes('mock') ? ' (mock data has no real picture).' : '.'); };
+    img.src = b.url;
+    pic.textContent = ''; pic.appendChild(img);
+  } else {
+    pic.innerHTML = '';
+    const a = document.createElement('a');
+    a.href = b.url || '#'; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = 'Today\'s APOD is a video. Open it on NASA.';
+    pic.appendChild(a);
+  }
+  $('#f-title').textContent = b.title || '';
+  $('#f-meta').textContent = b.date + (b.overridden ? ', title edited locally' : '');
+  $('#f-exp').textContent = b.note || b.explanation || '';
 }
 
 async function refreshStats() {
@@ -193,43 +344,47 @@ async function refreshStats() {
     const s = await r.json();
     $('#s-hits').textContent = s.hits;
     $('#s-misses').textContent = s.misses;
-    $('#s-ratio').textContent = s.hit_ratio === null ? '-' : Math.round(s.hit_ratio * 100) + '%';
-    $('#s-ttl').textContent = s.ttl_seconds_left === null ? 'n/a' : (s.ttl_seconds_left > 0 ? s.ttl_seconds_left + 's' : 'not cached');
-  } catch (e) { /* server restarting, ignore */ }
+    const total = s.hits + s.misses;
+    $('#s-ratio').textContent = s.hit_ratio === null ? '–' : Math.round(s.hit_ratio * 100) + '%';
+    $('#b-h').style.width = total ? (s.hits / total * 100) + '%' : '0';
+    $('#b-m').style.width = total ? (s.misses / total * 100) + '%' : '0';
+    if (s.ttl_seconds_left === null) { ttlExpires = null; setTtl('na'); }
+    else if (s.ttl_seconds_left > 0) { ttlExpires = Date.now() + s.ttl_seconds_left * 1000; }
+    else { ttlExpires = null; setTtl('none'); }
+  } catch (e) { /* server restarting */ }
 }
 
-function busy(on) {
-  document.querySelectorAll('button').forEach((b) => { b.disabled = on; });
+function setTtl(state, secs) {
+  const v = $('#s-ttl'), bar = $('#b-ttl');
+  if (state === 'na') { v.textContent = 'n/a'; bar.style.width = '0'; }
+  else if (state === 'none') { v.textContent = 'Not cached'; bar.style.width = '0'; }
+  else { v.textContent = secs + 's'; bar.style.width = Math.min(100, secs / TTL_TOTAL * 100) + '%'; }
 }
+setInterval(() => {
+  if (ttlExpires === null) return;
+  const left = Math.max(0, (ttlExpires - Date.now()) / 1000);
+  if (left <= 0) { ttlExpires = null; setTtl('none'); } else { setTtl('ok', Math.ceil(left)); $('#b-ttl').style.width = (left / TTL_TOTAL * 100) + '%'; }
+}, 250);
 
-document.querySelectorAll('button[data-kind]').forEach((b) => {
-  b.addEventListener('click', async () => {
-    busy(true); say('');
-    await call(b.dataset.kind);
-    await refreshStats();
-    busy(false);
-  });
-});
-
+function busy(on) { document.querySelectorAll('button').forEach((b) => { b.disabled = on; }); }
 async function post(path, body) {
-  const r = await fetch(path, {
-    method: 'POST',
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return r;
+  return fetch(path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
 }
 
+$('#send').addEventListener('click', async () => {
+  busy(true); say('');
+  await call(kind()); await refreshStats(); busy(false);
+});
 $('#inv-date').addEventListener('click', async () => {
   busy(true);
   await post('/api/cache/invalidate/?date=' + encodeURIComponent(dateVal()));
-  say('Cleared cache for ' + dateVal() + '. Next request will be a MISS.');
+  say('Cleared the cached copy for ' + dateVal() + '. The next request will be a MISS.');
   await refreshStats(); busy(false);
 });
 $('#inv-all').addEventListener('click', async () => {
   busy(true);
   await post('/api/cache/invalidate/');
-  say('Cleared every APOD entry (low-level and per-view).');
+  say('Cleared every cached APOD entry, including the per-view cache.');
   await refreshStats(); busy(false);
 });
 $('#reset').addEventListener('click', async () => {
@@ -238,22 +393,19 @@ $('#reset').addEventListener('click', async () => {
   say('Counters reset.');
   await refreshStats(); busy(false);
 });
-
 $('#ov-save').addEventListener('click', async () => {
   const title = $('#ov-title').value.trim();
-  if (!title) { say('Type a title first.'); return; }
+  if (!title) { say('Enter a new title first.'); $('#ov-title').focus(); return; }
   busy(true);
   const r = await post('/api/override/', { date: dateVal(), title, note: $('#ov-note').value });
-  if (!r.ok) { say('Could not save override.'); busy(false); return; }
-  say('Saved. Signal fired, cache for this date cleared. Fetching again...');
-  await call('low-level');
-  await refreshStats(); busy(false);
+  if (!r.ok) { say('Could not save the edit. Check the date and try again.'); busy(false); return; }
+  say('Saved. The cache for this date was cleared, requesting again.');
+  await call('low-level'); await refreshStats(); busy(false);
 });
-
 $('#bench').addEventListener('click', async () => {
   const HITS = 10;
   busy(true); $('#benchresult').textContent = '';
-  say('Running: 1 uncached call, 1 low-level miss, ' + HITS + ' low-level hits (2 calls to NASA in total).');
+  say('Running 1 request with no cache, 1 miss and ' + HITS + ' hits. That is 2 calls to NASA.');
   await post('/api/cache/invalidate/?date=' + encodeURIComponent(dateVal()));
   const unc = await call('uncached');
   const miss = await call('low-level');
@@ -261,18 +413,17 @@ $('#bench').addEventListener('click', async () => {
   for (let i = 0; i < HITS; i++) { hits.push((await call('low-level')).ms); await sleep(40); }
   const avg = hits.reduce((a, b) => a + b, 0) / hits.length;
   if (unc.ok && miss.ok) {
-    $('#benchresult').textContent = 'Uncached ' + unc.ms.toFixed(0) + ' ms, miss ' + miss.ms.toFixed(0) +
-      ' ms, hit avg ' + avg.toFixed(1) + ' ms. About ' + (unc.ms / avg).toFixed(0) + 'x faster from the cache.';
+    $('#benchresult').textContent = 'No cache ' + fmt(unc.ms) + ' ms, miss ' + fmt(miss.ms) + ' ms, hit average ' + fmt(avg) + ' ms. About ' + Math.round(unc.ms / avg) + 'x faster from the cache.';
     say('');
   } else {
-    say('Benchmark hit an error (check your API key or rate limit). See the log below.');
+    say('The benchmark hit an error. Check the API key or rate limit, then try again.');
   }
   await refreshStats(); busy(false);
 });
 
 $('#date').addEventListener('change', refreshStats);
 refreshStats();
-setInterval(refreshStats, 1500);
+setInterval(refreshStats, 3000);
 </script>
 </body>
 </html>
