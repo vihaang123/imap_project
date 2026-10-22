@@ -134,6 +134,7 @@ def dashboard(request):
             "default_date": "2024-01-15",
             "ttl": TTL,
             "mock": settings.USE_MOCK_NASA,
+            "cache_label": settings.CACHE_LABEL,
         },
     )
 

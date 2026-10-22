@@ -68,6 +68,7 @@
 <div class="wrap">
   <h1>APOD Cache Lab
     {% if mock %}<span class="badge warn">mock NASA mode</span>{% else %}<span class="badge">live NASA API</span>{% endif %}
+    <span class="badge {% if cache_label != "Redis" %}warn{% endif %}">cache: {{ cache_label }}</span>
   </h1>
   <p class="sub">Same data, three endpoints. Watch the response time change when Redis answers instead of NASA.</p>
 
@@ -193,7 +194,7 @@ async function refreshStats() {
     $('#s-hits').textContent = s.hits;
     $('#s-misses').textContent = s.misses;
     $('#s-ratio').textContent = s.hit_ratio === null ? '-' : Math.round(s.hit_ratio * 100) + '%';
-    $('#s-ttl').textContent = s.ttl_seconds_left ? s.ttl_seconds_left + 's' : 'not cached';
+    $('#s-ttl').textContent = s.ttl_seconds_left === null ? 'n/a' : (s.ttl_seconds_left > 0 ? s.ttl_seconds_left + 's' : 'not cached');
   } catch (e) { /* server restarting, ignore */ }
 }
 

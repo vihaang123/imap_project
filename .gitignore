@@ -6,3 +6,5 @@ __pycache__/
 venv/
 benchmark_results.json
 .DS_Store
+staticfiles/
+.vercel/
